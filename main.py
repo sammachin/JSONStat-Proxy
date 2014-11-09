@@ -4,24 +4,37 @@ import tornado.ioloop
 import tornado.web
 import tornado.httpclient
 import json
+import urlparse
 
 
-def cleanup(data):
-	obj = json.loads(data)
-	hir = obj[obj.keys()[0]]["dimension"]["id"][0]
-	size = len(obj[obj.keys()[0]]["dimension"][hir]['category']['index'])
-	obj[obj.keys()[0]]["dimension"]["size"][0] = size
-	data = json.dumps(obj)
+
+def cleanup(resp):
+	obj = json.loads(resp)
+	ds = obj.keys()[0]
+	data = {}
+	values  =  obj[ds]['value']
+	index = obj[ds]['dimension'][obj[ds]['dimension']['id'][1]]['category']['index']
+	labels = obj[ds]['dimension'][obj[ds]['dimension']['id'][1]]['category']['label']
+	for l in labels:
+		num = index[l]
+		count = values[str(num)]
+		data[labels[l]] = count
 	return data
+	
 	
 class MainHandler(tornado.web.RequestHandler):
 	@tornado.web.asynchronous
 	def get(self):
 		http = tornado.httpclient.AsyncHTTPClient()
-		http.fetch("http://data.ons.gov.uk/"+self.request.uri, self._on_download)
+		url = "http://data.ons.gov.uk/"+self.request.uri
+		http.fetch(url, self._on_download)
 
 	def _on_download(self, response):
+		print response.body
 		data = cleanup(response.body)
+		origin = self.request.headers.get_list('Origin')[0]
+		self.set_header("Access-Control-Allow-Origin" , origin)
+		self.set_header("Access-Control-Allow-Credentials", "true")
 		self.content_type = response.headers['Content-Type']
 		self.write(data)
 		self.finish()
